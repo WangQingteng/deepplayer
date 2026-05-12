@@ -34,3 +34,7 @@ libvlccore.dll
 plugins/
 vlc_path.txt
 _internal/
+
+# Upload script (contains token)
+upload_release.py
+DeepPlayer-portable.zip

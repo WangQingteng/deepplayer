@@ -185,6 +185,15 @@ class MainWindow(QMainWindow):
         fm.addAction(act_add)
         fm.addSeparator()
 
+        act_import = QAction("导入播放列表(&I)...", self)
+        act_import.triggered.connect(self._import_playlist)
+        fm.addAction(act_import)
+
+        act_export = QAction("导出播放列表(&E)...", self)
+        act_export.triggered.connect(self._export_playlist)
+        fm.addAction(act_export)
+        fm.addSeparator()
+
         act_quit = QAction("退出(&Q)", self)
         act_quit.setShortcut(QKeySequence("Ctrl+Q"))
         act_quit.triggered.connect(self.close)
@@ -480,11 +489,33 @@ class MainWindow(QMainWindow):
         if paths:
             self._playlist.add_files(paths)
 
+    def _import_playlist(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "导入播放列表", "",
+            "播放列表文件 (*.m3u *.m3u8);;所有文件 (*.*)",
+        )
+        if path:
+            self._playlist.load_playlist(path)
+            self._status_label.setText(f"已导入: {os.path.basename(path)}")
+
+    def _export_playlist(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "导出播放列表", "playlist.m3u",
+            "播放列表文件 (*.m3u);;所有文件 (*.*)",
+        )
+        if path:
+            self._playlist.save_playlist(path)
+            self._status_label.setText(f"已导出: {os.path.basename(path)}")
+
     def _toggle_fullscreen(self):
-        self._player.toggle_fullscreen()
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
 
     def _exit_fullscreen(self):
-        self._player.set_fullscreen(False)
+        if self.isFullScreen():
+            self.showNormal()
 
     def _toggle_playlist(self):
         if self._playlist_dock.isVisible():

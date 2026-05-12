@@ -34,6 +34,22 @@
 
 > ⚠️ VLC 的架构（32/64 位）必须与 Python 匹配。如果使用 64 位 Python，请安装 64 位 VLC。
 
+### 已验证环境
+
+- **VLC** 3.0.18+（Windows / macOS / Linux）
+- **Python** 3.10 / 3.11 / 3.12 / 3.13
+- **PySide6** 6.5+
+
+> 如遇到播放问题，请先确认 VLC 可独立播放同一文件。
+
+### 环境检查
+
+```bash
+python check_env.py
+```
+
+输出 `All checks passed!` 即环境就绪。
+
 ## 安装
 
 ```bash

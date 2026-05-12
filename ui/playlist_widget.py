@@ -161,6 +161,21 @@ class PlaylistWidget(QWidget):
         self._list.clear()
         self.playlist_changed.emit()
 
+    def save_playlist(self, path: str):
+        """导出播放列表为 .m3u 文件。"""
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("#EXTM3U\n")
+            for fp in self._files:
+                f.write(fp + "\n")
+
+    def load_playlist(self, path: str):
+        """从 .m3u 文件导入播放列表。"""
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    self.add_file(line)
+
     def is_empty(self) -> bool:
         return len(self._files) == 0
 

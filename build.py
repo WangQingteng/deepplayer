@@ -276,8 +276,8 @@ def run_pyinstaller(vlc_found: bool, vlc_dir: Path | None = None) -> bool:
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", NAME,
-        "--onefile",
-        "--console",
+        "--onedir",
+        "--windowed",
         "--clean",
         "--noconfirm",
         "--distpath", str(DIST_DIR),
@@ -406,10 +406,14 @@ def main():
             print("  正在尝试下载 VLC...")
             vlc_dir = download_vlc()
         if vlc_dir is None:
-            print("  仍会创建打包应用，但目标机器必须安装 VLC 才能播放。")
-
-            print("  提示: 使用 --download-vlc 可自动下载 VLC 进行捆绑。")
-            print("  继续...")
+            if "--skip-vlc" in args:
+                print("  仍会创建打包应用，但目标机器必须安装 VLC 才能播放。")
+                print("  继续...")
+            else:
+                print("\n  错误: 未找到 VLC 安装。请先安装 VLC，")
+                print("  或使用 --download-vlc 自动下载，")
+                print("  或使用 --skip-vlc 强制跳过（产物需在已安装 VLC 的系统上运行）。")
+                sys.exit(1)
     else:
         print(f"  已找到 VLC: {vlc_dir}")
 
@@ -430,7 +434,7 @@ def main():
 
     # ── 步骤 3: 验证输出 ──────────────────────────────────────
     exe_name = f"{NAME}.exe" if IS_WINDOWS else NAME
-    exe_path = DIST_DIR / exe_name
+    exe_path = DIST_DIR / NAME / exe_name
     if not exe_path.exists():
         print(f"\n  错误: 未找到 {exe_path} — PyInstaller 可能失败。")
         sys.exit(1)
@@ -438,18 +442,18 @@ def main():
     if vlc_dir is None:
         print(f"\n[3/{steps_total}] 未捆绑 VLC（未找到），目标机器需自行安装。")
     else:
-        print(f"\n[3/{steps_total}] VLC 已嵌入到 {exe_name} 中。")
+        print(f"\n[3/{steps_total}] VLC 已捆绑到输出目录中。")
 
     # ── 最终汇总 ────────────────────────────────────────
     print()
     print("=" * 60)
     print("  构建完成！")
     exe_name = f"{NAME}.exe" if IS_WINDOWS else NAME
-    exe_path = DIST_DIR / exe_name
-    print(f"  输出文件: {exe_path}")
+    exe_path = DIST_DIR / NAME / exe_name
+    print(f"  输出目录: {DIST_DIR / NAME}")
     if exe_path.exists():
-        size_mb = exe_path.stat().st_size / (1024 * 1024)
-        print(f"  文件大小: {size_mb:.1f} MB")
+        size_mb = sum(f.stat().st_size for f in (DIST_DIR / NAME).rglob("*") if f.is_file()) / (1024 * 1024)
+        print(f"  总大小: {size_mb:.1f} MB")
     print("=" * 60)
 
 

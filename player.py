@@ -1,6 +1,9 @@
 """VLC media player wrapper with Qt signal integration."""
 import sys
 import os
+import logging
+
+logger = logging.getLogger("DeepPlayer")
 
 # Workaround for python-vlc on Windows environments where
 # ProgramFiles / HOMEDRIVE env vars are missing (e.g. MS Store Python).
@@ -17,6 +20,8 @@ if getattr(sys, "frozen", False):
     app_dir = os.path.dirname(sys.executable)
     meipass = getattr(sys, "_MEIPASS", "")
 
+    logger.debug("Frozen mode: app_dir=%s, meipass=%s", app_dir, meipass)
+
     # Add app dir and _internal to DLL search path
     for d in [app_dir, meipass]:
         if d and os.path.isdir(d):
@@ -24,8 +29,9 @@ if getattr(sys, "frozen", False):
             if hasattr(os, 'add_dll_directory'):
                 try:
                     os.add_dll_directory(d)
-                except Exception:
-                    pass
+                    logger.debug("add_dll_directory: %s", d)
+                except Exception as ex:
+                    logger.warning("add_dll_directory failed for %s: %s", d, ex)
             if d not in os.environ.get("PATH", ""):
                 os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
 
@@ -37,6 +43,7 @@ if getattr(sys, "frozen", False):
     for pp in plugin_paths:
         if os.path.isdir(pp):
             os.environ["VLC_PLUGIN_PATH"] = pp
+            logger.debug("VLC_PLUGIN_PATH = %s", pp)
             break
 
     # Try vlc_path.txt as a hint
@@ -51,9 +58,11 @@ if getattr(sys, "frozen", False):
 try:
     import vlc
     _HAS_VLC = True
-except Exception:
+except Exception as e:
     vlc = None  # type: ignore
     _HAS_VLC = False
+    import traceback
+    logger.error("VLC import failed: %s\n%s", e, traceback.format_exc())
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -161,6 +170,8 @@ class VLCPlayer(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        logger.debug("VLCPlayer init, _HAS_VLC=%s", _HAS_VLC)
 
         if not _HAS_VLC:
             raise RuntimeError(
@@ -343,6 +354,7 @@ class VLCPlayer(QObject):
     # ── VLC event handlers ────────────────────────────────────────
 
     def _on_playing(self, event):
+        logger.debug("_on_playing fired")
         self._timer.start()
         self.state_changed.emit(vlc.State.Playing)
 
@@ -360,6 +372,7 @@ class VLCPlayer(QObject):
         self.playback_ended.emit()
 
     def _on_error(self, event):
+        logger.error("VLC playback error")
         self._timer.stop()
         self.error_occurred.emit("VLC 在播放过程中遇到错误。")
 

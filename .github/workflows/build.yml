@@ -9,14 +9,12 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
         include:
           - os: ubuntu-latest
             asset_name: DeepPlayer-linux
           - os: macos-latest
             asset_name: DeepPlayer-macos
-          - os: windows-latest
-            asset_name: DeepPlayer-windows
 
     runs-on: ${{ matrix.os }}
 
@@ -45,12 +43,6 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install --cask vlc
 
-      - name: Install VLC (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install vlc -y --no-progress
-          echo "C:\Program Files\VideoLAN\VLC" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Build
         shell: bash
         run: python build.py
@@ -78,13 +70,11 @@ jobs:
           body: |
             跨平台视频播放器 | PySide6 + libVLC
 
-            - **DeepPlayer-windows.zip** — 解压即用
             - **DeepPlayer-linux.zip** — 解压即用
             - **DeepPlayer-macos.zip** — 解压即用
 
-            无需安装 Python 或 VLC。
+            Windows 版本请在 Releases 页面下载 `DeepPlayer-portable.zip`。
           files: |
-            DeepPlayer-windows/DeepPlayer-windows.zip
             DeepPlayer-linux/DeepPlayer-linux.zip
             DeepPlayer-macos/DeepPlayer-macos.zip
         env:

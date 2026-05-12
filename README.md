@@ -11,13 +11,16 @@
 ## 功能特性
 
 - 播放、暂停、停止、快进、音量控制
+- **倍速播放** — 0.5x / 0.75x / 1.0x / 1.25x / 1.5x / 2.0x
 - 全屏模式（F / Esc）
 - 播放列表，支持拖放、排序、添加/移除
 - 从文件管理器拖放文件或文件夹
 - 打开文件夹 — 添加目录中所有媒体文件
+- **播放列表导入/导出** — .m3u / .m3u8 格式
+- **记忆播放进度** — 关闭时自动保存，下次打开恢复
+- **四种循环模式** — 顺序 / 列表循环 / 单曲循环 / 随机播放
+- **播放列表右键菜单** — 播放 / 移除 / 打开文件所在目录
 - 完整的键盘快捷键
-- 自动播放播放列表中的下一首
-- 循环播放模式
 - 字幕加载 + 延迟调节
 - 音轨切换
 - 画面比例控制
@@ -48,7 +51,7 @@
 python check_env.py
 ```
 
-输出 `All checks passed!` 即环境就绪。
+输出 `所有检查通过！` 即环境就绪。
 
 ## 安装
 
@@ -81,6 +84,7 @@ python main.py "path/to/video.mp4"
 | **Shift+← →** | 快进/快退 ±1 秒 |
 | **Ctrl+← →** | 上一首 / 下一首 |
 | **Ctrl+Shift+← →** | 快进/快退 ±15 秒 |
+| **Ctrl+] / Ctrl+[** | 字幕延迟 ±100ms |
 | **↑ ↓** | 音量 ±5 |
 | **Ctrl+↑ ↓** | 音量 ±5 |
 | **M** | 静音 |
@@ -97,14 +101,19 @@ python main.py "path/to/video.mp4"
 video_player/
 ├── main.py              # 入口文件、深色主题、命令行参数
 ├── player.py            # VLCPlayer — 封装 libVLC，通过 Qt 信号通信
+├── check_env.py         # 环境检查脚本
+├── build.py             # 打包构建脚本
 ├── requirements.txt
 ├── README.md
+├── LICENSE              # MIT 许可证
+├── CONTRIBUTING.md      # 贡献指南
+├── .github/workflows/   # CI/CD 自动构建
 └── ui/
     ├── __init__.py
     ├── main_window.py   # 主窗口 — 菜单、快捷键、拖放、信号连接
     ├── video_widget.py  # 承载 VLC 视频输出的 QFrame
     ├── controls.py      # 控制栏 — 播放/暂停、进度条、音量
-    └── playlist_widget.py  # 播放列表 — 列表、文件对话框、排序
+    └── playlist_widget.py  # 播放列表 — 列表、文件对话框、右键菜单
 ```
 
 ## 支持的格式
@@ -128,21 +137,16 @@ pip install pyinstaller
 ### 构建
 
 ```bash
-python build.py
+python build.py                 # 自动下载 VLC 并打包
+python build.py --skip-vlc      # 跳过 VLC（目标机器需自行安装）
+python build.py --download-vlc  # 强制下载 VLC
+python build.py --clean         # 清理构建产物
 ```
 
 此命令将：
-1. 定位 VLC 安装目录，将其 DLL 和插件复制到打包目录中
+1. 定位/下载 VLC，将其 DLL 和插件嵌入打包
 2. 运行 PyInstaller 冻结所有 Python 代码和 Qt 依赖
 3. 输出自包含的文件夹到 `dist/DeepPlayer/`
-
-如果构建时未安装 VLC，仍会生成包，但目标机器必须安装 VLC 才能播放媒体。
-
-### 清理
-
-```bash
-python build.py --clean
-```
 
 ### 构建输出
 
@@ -158,3 +162,7 @@ dist/DeepPlayer/
 分发方式：将整个 `dist/DeepPlayer/` 文件夹压缩后分享。接收者直接运行 `DeepPlayer.exe` — 无需 Python，无需安装。
 
 > ⚠️ **架构说明:** 打包产物与架构绑定。64 位构建需要目标系统安装 64 位 VLC。请分别针对不同平台和架构进行构建。
+
+## 许可证
+
+MIT License — 详见 [LICENSE](LICENSE)

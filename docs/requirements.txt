@@ -1,0 +1,3 @@
+# Sphinx 文档依赖
+sphinx>=7.0
+furo>=2024.0

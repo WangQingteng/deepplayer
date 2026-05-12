@@ -187,12 +187,7 @@ class VLCPlayer(QObject):
         self._current_file = None
         self._is_seeking = False
 
-        # Polling timer for position updates
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll_position)
-        self._timer.setInterval(self.POLL_INTERVAL_MS)
-
-        # VLC event callbacks
+        # VLC event callbacks (position via event instead of polling)
         events = self.player.event_manager()
         events.event_attach(vlc.EventType.MediaPlayerPlaying, self._on_playing)
         events.event_attach(vlc.EventType.MediaPlayerPaused, self._on_paused)
@@ -200,6 +195,7 @@ class VLCPlayer(QObject):
         events.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_end)
         events.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._on_error)
         events.event_attach(vlc.EventType.MediaPlayerLengthChanged, self._on_length_changed)
+        events.event_attach(vlc.EventType.MediaPlayerPositionChanged, self._on_position_changed)
 
     # ── Video widget embedding ──────────────────────────────────────
 
@@ -352,46 +348,36 @@ class VLCPlayer(QObject):
     def audio_track_description(self) -> list:
         return self.player.audio_get_track_description()
 
-    # ── Constants ────────────────────────────────────────────────────
-
-    POLL_INTERVAL_MS = 250  # 位置轮询间隔
-
-    # ── Internal polling ──────────────────────────────────────────
-
-    def _poll_position(self):
-        pos = self.player.get_position()
-        time_ms = self.player.get_time()
-        if pos >= 0:
-            self.position_changed.emit(pos, time_ms)
-        if self._is_seeking:
-            self._is_seeking = False
-
     # ── VLC event handlers ────────────────────────────────────────
 
     def _on_playing(self, event):
         logger.debug("_on_playing fired")
-        self._timer.start()
         self.state_changed.emit(vlc.State.Playing)
 
     def _on_paused(self, event):
-        self._timer.stop()
         self.state_changed.emit(vlc.State.Paused)
 
     def _on_stopped(self, event):
-        self._timer.stop()
         self.state_changed.emit(vlc.State.Stopped)
 
     def _on_end(self, event):
-        self._timer.stop()
         self.state_changed.emit(vlc.State.Ended)
         self.playback_ended.emit()
 
     def _on_error(self, event):
         logger.error("VLC playback error")
-        self._timer.stop()
         self.error_occurred.emit("VLC 在播放过程中遇到错误。")
 
     def _on_length_changed(self, event):
         length = self.player.get_length()
         if length > 0:
             self.duration_changed.emit(length)
+
+    def _on_position_changed(self, event):
+        """VLC MediaPlayerPositionChanged event — replaces polling timer."""
+        pos = self.player.get_position()
+        time_ms = self.player.get_time()
+        if pos >= 0:
+            self.position_changed.emit(pos, time_ms)
+        if self._is_seeking:
+            self._is_seeking = False

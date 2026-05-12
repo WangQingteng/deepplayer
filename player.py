@@ -190,7 +190,7 @@ class VLCPlayer(QObject):
         # Polling timer for position updates
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._poll_position)
-        self._timer.setInterval(250)
+        self._timer.setInterval(self.POLL_INTERVAL_MS)
 
         # VLC event callbacks
         events = self.player.event_manager()
@@ -351,6 +351,10 @@ class VLCPlayer(QObject):
 
     def audio_track_description(self) -> list:
         return self.player.audio_get_track_description()
+
+    # ── Constants ────────────────────────────────────────────────────
+
+    POLL_INTERVAL_MS = 250  # 位置轮询间隔
 
     # ── Internal polling ──────────────────────────────────────────
 

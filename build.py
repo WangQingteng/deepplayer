@@ -265,7 +265,7 @@ def copy_vlc_deps(vlc_dir: Path, dist_dir: Path) -> bool:
     return False
 
 
-def run_pyinstaller(vlc_found: bool) -> bool:
+def run_pyinstaller(vlc_found: bool, vlc_dir: Path | None = None) -> bool:
     """运行 PyInstaller 构建应用打包。
 
     Args:
@@ -276,10 +276,13 @@ def run_pyinstaller(vlc_found: bool) -> bool:
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", NAME,
-        "--onedir",
+        "--onefile",
         "--windowed",
         "--clean",
         "--noconfirm",
+        "--distpath", str(DIST_DIR),
+        "--workpath", str(BUILD_DIR),
+        "--specpath", str(PROJECT_ROOT),
         # Main script
         str(SRC_DIR / MAIN_SCRIPT),
         # Hidden imports — ensure all modules are found
@@ -297,6 +300,31 @@ def run_pyinstaller(vlc_found: bool) -> bool:
         # Collect PySide6 plugins (imageformats, platforms, styles, etc.)
         "--collect-all", "PySide6",
     ]
+
+    # Bundle VLC DLLs and plugins into the single exe (--onefile)
+    if vlc_dir is not None and vlc_dir.exists():
+        sep = ";" if IS_WINDOWS else ":"
+        if IS_WINDOWS:
+            for dll in ["libvlc.dll", "libvlccore.dll"]:
+                src = vlc_dir / dll
+                if src.exists():
+                    cmd += ["--add-binary", f"{src}{sep}."]
+            plugins_src = vlc_dir / "plugins"
+            if plugins_src.exists():
+                cmd += ["--add-data", f"{plugins_src}{sep}plugins"]
+        elif IS_LINUX:
+            for lib in vlc_dir.glob("libvlc*.so*"):
+                if lib.is_file():
+                    cmd += ["--add-binary", f"{lib}{sep}."]
+            plugins_src = vlc_dir.parent / "plugins"
+            if plugins_src.exists():
+                cmd += ["--add-data", f"{plugins_src}{sep}plugins"]
+        elif IS_MACOS:
+            for lib in vlc_dir.glob("libvlc*.dylib"):
+                cmd += ["--add-binary", f"{lib}{sep}."]
+            plugins_src = vlc_dir.parent / "plugins"
+            if plugins_src.exists():
+                cmd += ["--add-data", f"{plugins_src}{sep}plugins"]
 
     # Conditionally bundle python-vlc
     if vlc_found:
@@ -395,63 +423,33 @@ def main():
         old_path = os.environ.get("PATH", "")
         os.environ["PATH"] = str(vlc_dir) + os.pathsep + old_path
 
-    ok = run_pyinstaller(vlc_found=vlc_dir is not None)
+    ok = run_pyinstaller(vlc_found=vlc_dir is not None, vlc_dir=vlc_dir)
     if not ok:
         print("\n  错误: PyInstaller 运行失败。")
         sys.exit(1)
 
-    # ── 步骤 3: 复制 VLC 依赖 + python-vlc 模块 ──────────────
-    dist_app_dir = DIST_DIR / NAME
-    if not dist_app_dir.exists():
-        print(f"  错误: 未找到 dist/{NAME}/ — PyInstaller 可能失败。")
+    # ── 步骤 3: 验证输出 ──────────────────────────────────────
+    exe_name = f"{NAME}.exe" if IS_WINDOWS else NAME
+    exe_path = DIST_DIR / exe_name
+    if not exe_path.exists():
+        print(f"\n  错误: 未找到 {exe_path} — PyInstaller 可能失败。")
         sys.exit(1)
 
-    if vlc_dir is not None:
-        print(f"\n[3/{steps_total}] 正在捆绑 VLC 依赖...")
-        dist_app_dir = DIST_DIR / NAME
-        if not dist_app_dir.exists():
-            print(f"  错误: 未找到 dist/{NAME}/ — PyInstaller 可能失败。")
-            sys.exit(1)
-        copy_vlc_deps(vlc_dir, dist_app_dir)
-
-        # 在 Windows 上，同时复制到 _internal 目录以供 DLL 加载
-        if IS_WINDOWS:
-            internal_dir = dist_app_dir / "_internal"
-            if internal_dir.exists():
-                for dll in ["libvlc.dll", "libvlccore.dll"]:
-                    src = dist_app_dir / dll
-                    if src.exists():
-                        shutil.copy2(src, internal_dir / dll)
-                plugins_dst = internal_dir / "plugins"
-                plugins_src = dist_app_dir / "plugins"
-                if plugins_src.exists() and not plugins_dst.exists():
-                    shutil.copytree(plugins_src, plugins_dst)
-            # 同时添加 vlc.py 路径提示
-            # 写入 .pth 文件或设置 VLC_PLUGIN_PATH
-            plugin_path = dist_app_dir / "plugins"
-            if plugin_path.exists():
-                with open(dist_app_dir / "vlc_path.txt", "w") as f:
-                    f.write(str(plugin_path))
+    if vlc_dir is None:
+        print(f"\n[3/{steps_total}] 未捆绑 VLC（未找到），目标机器需自行安装。")
     else:
-        print(f"\n[3/{steps_total}] 跳过 VLC 捆绑（未找到）。")
-
-    # 始终尝试包含 python-vlc.py，以便应用可以使用 VLC DLL
-    _copy_vlc_py_module(dist_app_dir)
+        print(f"\n[3/{steps_total}] VLC 已嵌入到 {exe_name} 中。")
 
     # ── 最终汇总 ────────────────────────────────────────
     print()
     print("=" * 60)
     print("  构建完成！")
-    print(f"  输出目录: {DIST_DIR / NAME}")
-    print()
-
-    dist_app_dir = DIST_DIR / NAME
-    exe = dist_app_dir / f"{NAME}.exe" if IS_WINDOWS else dist_app_dir / NAME
-    if exe.exists():
-        size_mb = sum(f.stat().st_size for f in dist_app_dir.rglob("*")
-                       if f.is_file()) / (1024 * 1024)
-        print(f"  可执行文件: {exe}")
-        print(f"  总大小: {size_mb:.1f} MB")
+    exe_name = f"{NAME}.exe" if IS_WINDOWS else NAME
+    exe_path = DIST_DIR / exe_name
+    print(f"  输出文件: {exe_path}")
+    if exe_path.exists():
+        size_mb = exe_path.stat().st_size / (1024 * 1024)
+        print(f"  文件大小: {size_mb:.1f} MB")
     print("=" * 60)
 
 

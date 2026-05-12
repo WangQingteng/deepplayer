@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+*.spec
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PyInstaller
+*.spec
+
+# VLC bundled (large binary files, downloaded at build time)
+libvlc.dll
+libvlccore.dll
+plugins/
+vlc_path.txt
+_internal/

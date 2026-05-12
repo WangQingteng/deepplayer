@@ -13,10 +13,16 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: DeepPlayer-linux
+            pkg_cmd: tar -czf DeepPlayer-linux.tar.gz -C dist/DeepPlayer .
+            pkg_ext: tar.gz
           - os: macos-latest
             asset_name: DeepPlayer-macos
+            pkg_cmd: tar -czf DeepPlayer-macos.tar.gz -C dist/DeepPlayer .
+            pkg_ext: tar.gz
           - os: windows-latest
             asset_name: DeepPlayer-windows
+            pkg_cmd: Compress-Archive -Path dist\DeepPlayer\* -DestinationPath DeepPlayer-windows.zip
+            pkg_ext: zip
 
     runs-on: ${{ matrix.os }}
 
@@ -36,45 +42,24 @@ jobs:
 
       - name: Install VLC (Linux)
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y vlc libvlc-dev
+        run: sudo apt-get update && sudo apt-get install -y vlc libvlc-dev
 
       - name: Install VLC (macOS)
         if: runner.os == 'macOS'
-        run: |
-          brew install --cask vlc
-
-      - name: Install VLC (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install vlc -y
-          echo "C:\Program Files\VideoLAN\VLC" >> $env:GITHUB_PATH
+        run: brew install --cask vlc
 
       - name: Build
-        run: python build.py
+        run: python build.py --download-vlc
 
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist\DeepPlayer\* -DestinationPath DeepPlayer-windows.zip
-
-      - name: Package (Linux)
-        if: runner.os == 'Linux'
-        run: tar -czf DeepPlayer-linux.tar.gz -C dist/DeepPlayer .
-
-      - name: Package (macOS)
-        if: runner.os == 'macOS'
-        run: tar -czf DeepPlayer-macos.tar.gz -C dist/DeepPlayer .
+      - name: Package
+        shell: bash
+        run: ${{ matrix.pkg_cmd }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: |
-            DeepPlayer-windows.zip
-            DeepPlayer-linux.tar.gz
-            DeepPlayer-macos.tar.gz
+          path: DeepPlayer-*.${{ matrix.pkg_ext }}
 
   release:
     needs: build

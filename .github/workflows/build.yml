@@ -31,16 +31,10 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: DeepPlayer-linux
-            pkg_cmd: tar -czf DeepPlayer-linux.tar.gz -C dist/DeepPlayer .
-            pkg_ext: tar.gz
           - os: macos-latest
             asset_name: DeepPlayer-macos
-            pkg_cmd: tar -czf DeepPlayer-macos.tar.gz -C dist/DeepPlayer .
-            pkg_ext: tar.gz
           - os: windows-latest
             asset_name: DeepPlayer-windows
-            pkg_cmd: Compress-Archive -Path dist\DeepPlayer\* -DestinationPath DeepPlayer-windows.zip
-            pkg_ext: zip
 
     runs-on: ${{ matrix.os }}
 
@@ -70,14 +64,13 @@ jobs:
         run: python build.py --download-vlc
 
       - name: Package
-        shell: bash
-        run: ${{ matrix.pkg_cmd }}
+        run: python -c "import shutil; shutil.make_archive('${{ matrix.asset_name }}', 'zip', 'dist/DeepPlayer')"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: DeepPlayer-*.${{ matrix.pkg_ext }}
+          path: ${{ matrix.asset_name }}.zip
 
   release:
     needs: build
@@ -94,13 +87,13 @@ jobs:
             跨平台视频播放器 | PySide6 + libVLC
 
             - **DeepPlayer-windows.zip** — 解压即用
-            - **DeepPlayer-linux.tar.gz** — 解压即用
-            - **DeepPlayer-macos.tar.gz** — 解压即用
+            - **DeepPlayer-linux.zip** — 解压即用
+            - **DeepPlayer-macos.zip** — 解压即用
 
             无需安装 Python 或 VLC。
           files: |
             DeepPlayer-windows/DeepPlayer-windows.zip
-            DeepPlayer-linux/DeepPlayer-linux.tar.gz
-            DeepPlayer-macos/DeepPlayer-macos.tar.gz
+            DeepPlayer-linux/DeepPlayer-linux.zip
+            DeepPlayer-macos/DeepPlayer-macos.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

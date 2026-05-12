@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QMenuBar, QMenu, QFileDialog, QStatusBar, QLabel,
     QDockWidget, QMessageBox,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSettings
 from PySide6.QtGui import (
     QAction, QKeySequence, QShortcut, QDragEnterEvent, QDropEvent,
 )
@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
         # State
         self._current_playlist_index = -1
         self._vlc_missing_label = None
+        self._settings = QSettings("DeepPlayer", "DeepPlayer")
+        self._repeat_mode = 0  # 0=顺序, 1=列表循环, 2=单曲循环, 3=随机
 
         # Build UI
         self._setup_ui()
@@ -68,6 +70,7 @@ class MainWindow(QMainWindow):
         # Initial state
         self._controls.reset()
         self._update_title()
+        self._restore_playlist()
 
         # Show VLC missing message if needed
         if not self._vlc_available:
@@ -223,10 +226,18 @@ class MainWindow(QMainWindow):
         pm.addAction(act_prev)
         pm.addSeparator()
 
-        self._act_repeat = QAction("循环播放(&R)", self)
-        self._act_repeat.setCheckable(True)
-        self._act_repeat.triggered.connect(self._toggle_repeat)
+        self._act_repeat = QAction("顺序播放", self)
+        self._act_repeat.triggered.connect(self._cycle_repeat_mode)
         pm.addAction(self._act_repeat)
+        pm.addSeparator()
+
+        # 播放速度子菜单
+        speed_menu = pm.addMenu("播放速度")
+        for label, rate in [("0.5x", 0.5), ("0.75x", 0.75), ("1.0x (正常)", 1.0),
+                             ("1.25x", 1.25), ("1.5x", 1.5), ("2.0x", 2.0)]:
+            act = QAction(label, self)
+            act.triggered.connect(lambda checked, r=rate: self._player.set_rate(r))
+            speed_menu.addAction(act)
 
         # ── 音频 ──────────────────────────────────────────────
         am = mb.addMenu("音频(&A)")
@@ -274,12 +285,12 @@ class MainWindow(QMainWindow):
         vm.addAction(act_sub)
 
         act_sd_plus = QAction("字幕延迟 +100ms", self)
-        act_sd_plus.setShortcut(QKeySequence("Ctrl+Shift+Right"))
+        act_sd_plus.setShortcut(QKeySequence("Ctrl+]"))
         act_sd_plus.triggered.connect(lambda: self._adjust_subtitle_delay(100))
         vm.addAction(act_sd_plus)
 
         act_sd_minus = QAction("字幕延迟 -100ms", self)
-        act_sd_minus.setShortcut(QKeySequence("Ctrl+Shift+Left"))
+        act_sd_minus.setShortcut(QKeySequence("Ctrl+["))
         act_sd_minus.triggered.connect(lambda: self._adjust_subtitle_delay(-100))
         vm.addAction(act_sd_minus)
 
@@ -360,7 +371,7 @@ class MainWindow(QMainWindow):
     #  Playback Control
     # ═══════════════════════════════════════════════════════════
 
-    def open_file(self, path: str):
+    def open_file(self, path: str, restore_position: bool = True):
         if not os.path.isfile(path):
             self._status_label.setText(f"文件未找到: {path}")
             return
@@ -369,6 +380,11 @@ class MainWindow(QMainWindow):
         self._player.load(path)
         self._player.play()
         self._add_to_playlist_if_new(path)
+        # 恢复上次播放位置
+        if restore_position:
+            saved_ms = self._settings.value(f"position/{path}", 0)
+            if saved_ms and int(saved_ms) > 2000:  # 跳过太短的位置
+                self._player.set_time(int(saved_ms))
 
     def _toggle_play_pause(self):
         if self._player.is_playing():
@@ -384,7 +400,7 @@ class MainWindow(QMainWindow):
         nxt = self._playlist.select_next()
         if nxt >= 0:
             self._play_playlist_at(nxt)
-        elif self._act_repeat.isChecked() and not self._playlist.is_empty():
+        elif self._repeat_mode in (1, 3) and not self._playlist.is_empty():
             self._play_playlist_at(0)
 
     def _play_previous(self):
@@ -402,6 +418,14 @@ class MainWindow(QMainWindow):
             self._playlist.set_current_index(idx)
             self._current_playlist_index = idx
             self._update_title()
+
+    def _restore_playlist(self):
+        files = self._settings.value("playlist/files")
+        if files:
+            self._playlist.add_files(list(files))
+            current = self._settings.value("playlist/current", -1)
+            if current >= 0:
+                self._playlist.set_current_index(int(current))
 
     def _add_to_playlist_if_new(self, path: str):
         abs_path = os.path.abspath(path)
@@ -439,13 +463,20 @@ class MainWindow(QMainWindow):
             self._status_label.setText("播放结束")
 
     def _on_playback_ended(self):
-        if self._act_repeat.isChecked():
+        if self._repeat_mode == 2:  # 单曲循环
             if self._player.current_file:
                 self._player.stop()
                 self._player.load(self._player.current_file)
                 self._player.play()
-        else:
+        elif self._repeat_mode == 3:  # 随机
+            import random
+            count = self._playlist.count()
+            if count > 0:
+                idx = random.randint(0, count - 1)
+                self._play_playlist_at(idx)
+        elif self._repeat_mode == 1:  # 列表循环
             self._play_next()
+        # else: 0=顺序，什么都不做
 
     def _on_player_error(self, msg: str):
         self._status_label.setText(f"错误: {msg}")
@@ -524,8 +555,11 @@ class MainWindow(QMainWindow):
             self._playlist_dock.show()
             self._playlist_dock.raise_()
 
-    def _toggle_repeat(self, checked: bool):
-        self._status_label.setText("循环播放: 开" if checked else "循环播放: 关")
+    def _cycle_repeat_mode(self):
+        MODES = ["顺序播放", "列表循环", "单曲循环", "随机播放"]
+        self._repeat_mode = (self._repeat_mode + 1) % 4
+        self._act_repeat.setText(MODES[self._repeat_mode])
+        self._status_label.setText(f"播放模式: {MODES[self._repeat_mode]}")
 
     def _next_audio_track(self):
         desc = self._player.audio_track_description()
@@ -573,6 +607,7 @@ class MainWindow(QMainWindow):
             "<tr><td><b>← →</b></td><td>快进/快退 5 秒</td></tr>"
             "<tr><td><b>Shift+← →</b></td><td>快进/快退 1 秒</td></tr>"
             "<tr><td><b>Ctrl+← →</b></td><td>上一首 / 下一首</td></tr>"
+            "<tr><td><b>Ctrl+] / Ctrl+[</b></td><td>字幕延迟 ±100ms</td></tr>"
             "<tr><td><b>Ctrl+Shift+← →</b></td><td>快进/快退 15 秒</td></tr>"
             "<tr><td><b>↑ ↓</b></td><td>音量 ±5</td></tr>"
             "<tr><td><b>Ctrl+↑ ↓</b></td><td>音量 ±5</td></tr>"
@@ -604,6 +639,21 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(f"{filename}{state} — {base}")
         else:
             self.setWindowTitle(base)
+
+    # ═══════════════════════════════════════════════════════════
+    #  Close & Save
+    # ═══════════════════════════════════════════════════════════
+
+    def closeEvent(self, event):
+        # 保存当前播放位置
+        if self._player.current_file and self._player.get_time() > 0:
+            self._settings.setValue(f"position/{self._player.current_file}", self._player.get_time())
+        # 保存播放列表
+        if not self._playlist.is_empty():
+            files = self._playlist.all_files()
+            self._settings.setValue("playlist/files", files)
+            self._settings.setValue("playlist/current", self._playlist.current_index())
+        super().closeEvent(event)
 
     # ═══════════════════════════════════════════════════════════
     #  Drag & Drop

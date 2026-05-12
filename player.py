@@ -133,6 +133,8 @@ class StubPlayer(QObject):
     def get_fullscreen(self) -> bool: return False
 
     def set_aspect_ratio(self, ratio: str): pass
+    def set_rate(self, rate: float): pass
+    def get_rate(self) -> float: return 1.0
     def set_subtitle_file(self, path: str): pass
     def set_subtitle_delay(self, delay_ms: int): pass
     def audio_track_count(self) -> int: return 0
@@ -321,6 +323,15 @@ class VLCPlayer(QObject):
     def set_aspect_ratio(self, ratio: str):
         """Set aspect ratio, e.g. "16:9", "4:3", "default"."""
         self.player.video_set_aspect_ratio(ratio)
+
+    # ── Playback speed ────────────────────────────────────────────
+
+    def set_rate(self, rate: float):
+        """Set playback speed (0.5, 1.0, 1.5, 2.0, etc.)."""
+        self.player.set_rate(rate)
+
+    def get_rate(self) -> float:
+        return self.player.get_rate()
 
     # ── Subtitle ──────────────────────────────────────────────────
 

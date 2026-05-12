@@ -47,6 +47,7 @@ class PlaylistWidget(QWidget):
         self._list.doubleClicked.connect(self._on_double_click)
         self._list.model().rowsMoved.connect(self._on_reorder)
         self._list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._list.customContextMenuRequested.connect(self._show_context_menu)
 
         # Enable file drop from OS
         self._list.setAcceptDrops(True)
@@ -215,3 +216,35 @@ class PlaylistWidget(QWidget):
                 new_files.append(path)
         self._files = new_files
         self.playlist_changed.emit()
+
+    def _show_context_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        item = self._list.itemAt(pos)
+        if not item:
+            return
+        row = self._list.row(item)
+        menu = QMenu(self)
+
+        act_play = menu.addAction("▶ 播放")
+        act_play.triggered.connect(lambda: self.item_double_clicked.emit(row))
+
+        menu.addSeparator()
+
+        act_remove = menu.addAction("✕ 移除")
+        act_remove.triggered.connect(lambda: self.remove_index(row))
+
+        act_path = menu.addAction("📂 打开文件所在目录")
+        act_path.triggered.connect(lambda: self._open_file_location(row))
+
+        menu.exec(self._list.viewport().mapToGlobal(pos))
+
+    def _open_file_location(self, row: int):
+        path = self.file_at(row)
+        if path:
+            import subprocess, sys
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", "/select,", path])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(path)])

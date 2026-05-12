@@ -277,7 +277,7 @@ def run_pyinstaller(vlc_found: bool, vlc_dir: Path | None = None) -> bool:
         sys.executable, "-m", "PyInstaller",
         "--name", NAME,
         "--onefile",
-        "--windowed",
+        "--console",
         "--clean",
         "--noconfirm",
         "--distpath", str(DIST_DIR),

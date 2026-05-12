@@ -20,6 +20,12 @@ if getattr(sys, "frozen", False):
     # Add app dir and _internal to DLL search path
     for d in [app_dir, meipass]:
         if d and os.path.isdir(d):
+            # Python 3.8+ requires add_dll_directory for Windows DLL loading
+            if hasattr(os, 'add_dll_directory'):
+                try:
+                    os.add_dll_directory(d)
+                except Exception:
+                    pass
             if d not in os.environ.get("PATH", ""):
                 os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
 
